@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWAStatus, getWAClient } from '@/lib/whatsapp/client';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
