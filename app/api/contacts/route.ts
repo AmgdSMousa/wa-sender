@@ -40,11 +40,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid contacts data' }, { status: 400 });
     }
 
-    // 1. Deduplicate batch contacts array internally by phone number
+    // 1. Clean and deduplicate batch contacts by clean digits-only phone number
     const uniqueBatchMap = new Map<string, any>();
     contacts.forEach(c => {
       if (c && c.phone) {
-        const cleanPhone = String(c.phone).trim();
+        const cleanPhone = String(c.phone).trim().replace(/[^0-9]/g, '');
         if (cleanPhone && !uniqueBatchMap.has(cleanPhone)) {
           uniqueBatchMap.set(cleanPhone, { ...c, phone: cleanPhone });
         }
@@ -56,33 +56,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, count: 0 });
     }
 
-    // 2. Filter contacts that already exist in database
-    const phones = deduplicatedContacts.map(c => c.phone);
-    const existingContacts = await prisma.contact.findMany({
-      where: { phone: { in: phones } },
-      select: { phone: true }
-    });
-    
-    const existingPhones = new Set(existingContacts.map(c => c.phone));
-    const newContacts = deduplicatedContacts.filter(c => !existingPhones.has(c.phone));
-
-    if (newContacts.length === 0) {
-      return NextResponse.json({ success: true, count: 0 });
+    // 2. Perform safe upsert for every contact (no P2002 createMany errors possible)
+    let savedCount = 0;
+    for (const c of deduplicatedContacts) {
+      try {
+        await prisma.contact.upsert({
+          where: { phone: c.phone },
+          update: {
+            ...(c.name ? { name: c.name } : {}),
+            ...(c.tags ? { tags: c.tags } : {}),
+            ...(c.metadata ? { metadata: c.metadata } : {}),
+          },
+          create: {
+            phone: c.phone,
+            name: c.name || null,
+            tags: c.tags || null,
+            metadata: c.metadata || null,
+            source: c.source || 'crm_manual'
+          }
+        });
+        savedCount++;
+      } catch (upsertErr) {
+        console.warn(`Safe upsert skip for contact ${c.phone}:`, upsertErr);
+      }
     }
 
-    // 3. Insert new contacts with skipDuplicates
-    const result = await prisma.contact.createMany({
-      data: newContacts.map(c => ({
-        phone: c.phone,
-        name: c.name || null,
-        tags: c.tags || null,
-        metadata: c.metadata || null,
-        source: c.source || 'crm_manual'
-      })),
-      skipDuplicates: true
-    });
-
-    return NextResponse.json({ success: true, count: result.count });
+    return NextResponse.json({ success: true, count: savedCount });
   } catch (error: any) {
     console.error('API Contact Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
