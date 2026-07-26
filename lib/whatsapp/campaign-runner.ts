@@ -17,10 +17,15 @@ export const runCampaign = async (campaignId: number) => {
 
   if (!campaign || campaign.status === 'done') return;
 
-  // Check if WhatsApp is actually connected and ready
-  const sessionStatus = getWAStatus(campaign.sessionId || 'default');
-  if (sessionStatus.status !== 'connected') {
-    console.warn(`WhatsApp session "${campaign.sessionId || 'default'}" is not connected (Status: ${sessionStatus.status}). Resetting campaign to draft.`);
+  // Check if WhatsApp is actually connected and ready (memory or database)
+  const dbSession = await prisma.wASession.findUnique({
+    where: { sessionId: campaign.sessionId || 'default' }
+  });
+  const memStatus = getWAStatus(campaign.sessionId || 'default').status;
+  const isConnected = memStatus === 'connected' || dbSession?.status === 'connected';
+
+  if (!isConnected) {
+    console.warn(`WhatsApp session "${campaign.sessionId || 'default'}" is not connected (Status: ${memStatus}, DB: ${dbSession?.status}). Resetting campaign to draft.`);
     await prisma.campaign.update({
       where: { id: campaignId },
       data: { status: 'draft' },
