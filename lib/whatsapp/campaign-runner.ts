@@ -140,14 +140,14 @@ export const runCampaign = async (campaignId: number) => {
 
       // ─── 2. Realistic Typing Presence Simulation ("جاري الكتابة...") ─────────
       try {
-        const chat = await client.getChatById(chatId);
-        if (chat) {
-          await chat.sendStateTyping();
-          // Wait while typing indicator is active
+        const chat = await client.getChatById(chatId).catch(() => null);
+        if (chat && typeof chat.sendStateTyping === 'function') {
+          await chat.sendStateTyping().catch(() => {});
+          await new Promise(resolve => setTimeout(resolve, typingTimeMs));
+        } else {
           await new Promise(resolve => setTimeout(resolve, typingTimeMs));
         }
       } catch (typingErr) {
-        // If chat typing state isn't supported, just wait out the typing time
         await new Promise(resolve => setTimeout(resolve, typingTimeMs));
       }
 
@@ -244,8 +244,8 @@ export const runCampaign = async (campaignId: number) => {
 
       // Clear typing indicator state after sending
       try {
-        const chat = await client.getChatById(chatId);
-        if (chat) await chat.clearState();
+        const chat = await client.getChatById(chatId).catch(() => null);
+        if (chat && typeof chat.clearState === 'function') await chat.clearState().catch(() => {});
       } catch (e) { /* ignore */ }
 
       // Update contact status
