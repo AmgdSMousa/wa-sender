@@ -57,9 +57,23 @@ export const runCampaign = async (campaignId: number) => {
     return;
   }
 
+  // ─── Ensure client is fully connected & window.Store is ready ────────────
+  let currentStatus = getWAStatus(campaign.sessionId || 'default').status;
+  if (currentStatus === 'connecting') {
+    console.log(`[CAMPAIGN RUNNER] Session "${campaign.sessionId || 'default'}" is currently connecting. Waiting for ready state...`);
+    let waitMs = 0;
+    while (currentStatus === 'connecting' && waitMs < 25000) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      waitMs += 1000;
+      currentStatus = getWAStatus(campaign.sessionId || 'default').status;
+    }
+    console.log(`[CAMPAIGN RUNNER] After waiting: Session "${campaign.sessionId || 'default'}" status = ${currentStatus}`);
+  }
+
   const client = getWAClient(campaign.sessionId || 'default');
   
-  if (!client) {
+  if (!client || currentStatus !== 'connected') {
+    console.warn(`[CAMPAIGN RUNNER] WhatsApp session "${campaign.sessionId || 'default'}" is not fully ready (Status: ${currentStatus}). Resetting campaign to draft.`);
     await prisma.campaign.update({
       where: { id: campaignId },
       data: { status: 'draft' },
@@ -171,13 +185,53 @@ export const runCampaign = async (campaignId: number) => {
               throw new Error(`Local file not found: ${filePath}`);
             }
           }
-          await client.sendMessage(chatId, media, { caption: message });
+          
+          // Safe send media message with getChat retry
+          let sent = false;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              await client.sendMessage(chatId, media, { caption: message });
+              sent = true;
+              break;
+            } catch (err: any) {
+              if (err?.message?.includes('getChat') && attempt < 3) {
+                console.warn(`[CAMPAIGN RUNNER] WhatsApp Web Store getChat delay on attempt ${attempt}, waiting 3s...`);
+                await new Promise(r => setTimeout(r, 3000));
+              } else {
+                throw err;
+              }
+            }
+          }
         } catch (mediaError) {
           console.error(`Failed to load media from ${campaign.mediaUrl}, sending text only:`, mediaError);
-          await client.sendMessage(chatId, message);
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              await client.sendMessage(chatId, message);
+              break;
+            } catch (err: any) {
+              if (err?.message?.includes('getChat') && attempt < 3) {
+                console.warn(`[CAMPAIGN RUNNER] WhatsApp Web Store getChat delay on attempt ${attempt}, waiting 3s...`);
+                await new Promise(r => setTimeout(r, 3000));
+              } else {
+                throw err;
+              }
+            }
+          }
         }
       } else {
-        await client.sendMessage(chatId, message);
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await client.sendMessage(chatId, message);
+            break;
+          } catch (err: any) {
+            if (err?.message?.includes('getChat') && attempt < 3) {
+              console.warn(`[CAMPAIGN RUNNER] WhatsApp Web Store getChat delay on attempt ${attempt}, waiting 3s...`);
+              await new Promise(r => setTimeout(r, 3000));
+            } else {
+              throw err;
+            }
+          }
+        }
       }
 
       // Clear typing indicator state after sending
