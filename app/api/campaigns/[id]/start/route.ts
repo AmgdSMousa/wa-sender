@@ -19,7 +19,19 @@ export async function POST(
     if (!campaign) {
       return NextResponse.json({ error: 'الحملة غير موجودة' }, { status: 404 });
     }
-    
+
+    // Reset non-sent contacts in this campaign to 'pending' so they get processed
+    await prisma.campaignContact.updateMany({
+      where: { campaignId: id, status: { not: 'sent' } },
+      data: { status: 'pending', error: null },
+    });
+
+    // Update campaign status to running
+    await prisma.campaign.update({
+      where: { id },
+      data: { status: 'running' },
+    });
+
     // Trigger runCampaign on setImmediate so the HTTP response returns in 1ms without Cloudflare 524 timeout
     setImmediate(() => {
       runCampaign(id).catch((err) => console.error('Background runCampaign error:', err));
