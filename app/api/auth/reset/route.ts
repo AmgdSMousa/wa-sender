@@ -11,19 +11,27 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await prisma.user.upsert({
-      where: { username: 'admin' },
-      update: { password: hashedPassword },
-      create: {
-        username: 'admin',
-        password: hashedPassword,
-        role: 'admin',
-        name: 'System Admin',
-      },
-    });
+    const existingUser = await prisma.user.findFirst();
+
+    if (!existingUser) {
+      await prisma.user.create({
+        data: {
+          username: 'admin',
+          password: hashedPassword,
+          role: 'admin',
+          name: 'System Admin',
+        },
+      });
+    } else {
+      await prisma.user.updateMany({
+        where: { username: 'admin' },
+        data: { password: hashedPassword },
+      });
+    }
 
     return NextResponse.json({ success: true, message: 'تم تعيين كلمة المرور الجديدة بنجاح للمستخدم admin' });
   } catch (error: any) {
-    return NextResponse.json({ error: 'فشل تصفير كلمة المرور' }, { status: 500 });
+    console.error('Password reset error:', error);
+    return NextResponse.json({ error: error?.message || 'فشل تصفير كلمة المرور' }, { status: 500 });
   }
 }
