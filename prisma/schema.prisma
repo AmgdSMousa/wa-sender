@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Campaign {
+  id          Int               @id @default(autoincrement())
+  sessionId   String            @default("default")
+  name        String
+  message     String
+  mediaUrl    String?
+  minDelay    Int               @default(3)
+  maxDelay    Int               @default(10)
+  status      String            @default("draft")
+  scheduledAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  batchDelay  Int?
+  batchSize   Int?
+  // Drip campaign: if isDrip is true, use sequenceSteps JSON
+  isDrip      Boolean           @default(false)
+  sequenceSteps String?         // JSON array of { message, delayDays }
+  contacts    CampaignContact[]
+}
+
+model Contact {
+  id            Int               @id @default(autoincrement())
+  phone         String            @unique
+  name          String?
+  groupId       String?
+  source        String?
+  isBlacklisted Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  metadata      String?           // JSON for custom fields e.g. { city, company }
+  tags          String?
+  city          String?
+  company       String?
+  notes         String?
+  campaigns     CampaignContact[]
+  messages      ChatMessage[]
+}
+
+model CampaignContact {
+  id         Int       @id @default(autoincrement())
+  campaignId Int
+  contactId  Int
+  status     String    @default("pending")
+  sentAt     DateTime?
+  error      String?
+  ackStatus  Int?      // 1=sent 2=delivered 3=read
+  readAt     DateTime?
+  contact    Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, contactId])
+}
+
+model BotRule {
+  id        Int      @id @default(autoincrement())
+  keyword   String   @unique
+  reply     String
+  matchType String   @default("exact")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  mediaUrl  String?
+  hitCount  Int      @default(0)
+}
+
+model WASession {
+  id        Int      @id @default(autoincrement())
+  sessionId String   @unique @default("default")
+  data      String?
+  status    String   @default("disconnected")
+  updatedAt DateTime @updatedAt
+}
+
+model DailyStats {
+  id         Int      @id @default(autoincrement())
+  date       DateTime @unique @default(now())
+  sent       Int      @default(0)
+  failed     Int      @default(0)
+  botReplied Int      @default(0)
+  aiReplied  Int      @default(0)
+  delivered  Int      @default(0)
+  read       Int      @default(0)
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  username  String   @unique
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AIConfig {
+  id              Int      @id @default(autoincrement())
+  apiKey          String?
+  openaiApiKey    String?
+  provider        String   @default("gemini")
+  fallbackEnabled Boolean  @default(true)
+  systemPrompt    String?
+  isEnabled       Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+model KnowledgeFile {
+  id        Int      @id @default(autoincrement())
+  fileName  String
+  content   String
+  createdAt DateTime @default(now())
+}
+
+// ─── NEW: Live Chat / Inbox ────────────────────────────────────────────────────
+model ChatMessage {
+  id          Int       @id @default(autoincrement())
+  phone       String
+  contactId   Int?
+  direction   String    // "in" | "out"
+  body        String
+  mediaUrl    String?
+  msgType     String    @default("text") // text | image | audio | doc
+  sessionId   String    @default("default")
+  isRead      Boolean   @default(false)
+  botHandled  Boolean   @default(false)  // true = bot replied, false = human
+  humanMode   Boolean   @default(false)  // true = bot paused for this contact
+  createdAt   DateTime  @default(now())
+  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+}
+
+// ─── NEW: Message Templates ────────────────────────────────────────────────────
+model Template {
+  id        Int      @id @default(autoincrement())
+  name      String
+  body      String
+  mediaUrl  String?
+  category  String   @default("marketing") // marketing | support | reminder
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── NEW: Webhook Configs ──────────────────────────────────────────────────────
+model WebhookConfig {
+  id        Int      @id @default(autoincrement())
+  name      String
+  url       String
+  events    String   // JSON array: ["message.received", "campaign.completed"]
+  secret    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
