@@ -109,12 +109,11 @@ export const getWAClient = (sessionId: string = 'default', force = false) => {
         ],
         headless: true,
       },
-    },
-    webVersionCache: {
-      type: 'local',
-      strict: false,
-    }
-  });
+      webVersionCache: {
+        type: 'local',
+        strict: false,
+      }
+    });
   } catch (err) {
     console.error('Failed to instantiate WA Client:', err);
     state.isInitializing = false;
