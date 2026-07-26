@@ -138,7 +138,7 @@ export default function Campaigns() {
       });
       if (res.ok) {
         setShowCreate(false);
-        setNewCampaign({ name: "", message: "", contacts: [], scheduledAt: "", minDelay: 3, maxDelay: 10, mediaUrl: "", sessionId: "default", isDrip: false, sequenceSteps: [] });
+        setNewCampaign({ name: "", message: "", contacts: [], scheduledAt: "", minDelay: 3, maxDelay: 10, batchSize: 20, batchDelay: 5, mediaUrl: "", sessionId: "default", isDrip: false, sequenceSteps: [] });
         setCampaignType('instant');
         fetchCampaigns();
         toast.success("تم إنشاء الحملة بنجاح! ✅");
