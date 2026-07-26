@@ -5,6 +5,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 
 export const runCampaign = async (campaignId: number) => {
+  console.log(`[CAMPAIGN RUNNER] Received request to run campaign #${campaignId}`);
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: {
@@ -15,7 +16,15 @@ export const runCampaign = async (campaignId: number) => {
     },
   });
 
-  if (!campaign || campaign.status === 'done') return;
+  if (!campaign) {
+    console.warn(`[CAMPAIGN RUNNER] Campaign #${campaignId} not found in database.`);
+    return;
+  }
+
+  if (campaign.status === 'done') {
+    console.log(`[CAMPAIGN RUNNER] Campaign #${campaignId} is already completed ('done').`);
+    return;
+  }
 
   // Check if WhatsApp is actually connected and ready (memory or database)
   const dbSession = await prisma.wASession.findUnique({
@@ -24,8 +33,10 @@ export const runCampaign = async (campaignId: number) => {
   const memStatus = getWAStatus(campaign.sessionId || 'default').status;
   const isConnected = memStatus === 'connected' || dbSession?.status === 'connected';
 
+  console.log(`[CAMPAIGN RUNNER] Session "${campaign.sessionId || 'default'}": Memory Status = ${memStatus}, DB Status = ${dbSession?.status}, isConnected = ${isConnected}`);
+
   if (!isConnected) {
-    console.warn(`WhatsApp session "${campaign.sessionId || 'default'}" is not connected (Status: ${memStatus}, DB: ${dbSession?.status}). Resetting campaign to draft.`);
+    console.warn(`WhatsApp session "${campaign.sessionId || 'default'}" is not connected. Resetting campaign to draft.`);
     await prisma.campaign.update({
       where: { id: campaignId },
       data: { status: 'draft' },
@@ -33,9 +44,12 @@ export const runCampaign = async (campaignId: number) => {
     return;
   }
 
+  console.log(`[CAMPAIGN RUNNER] Campaign #${campaignId} has ${campaign.contacts?.length || 0} pending contacts.`);
+
   // If no pending contacts exist for this campaign
   if (!campaign.contacts || campaign.contacts.length === 0) {
     const totalCount = await prisma.campaignContact.count({ where: { campaignId } });
+    console.warn(`[CAMPAIGN RUNNER] 0 pending contacts found for campaign #${campaignId} (Total contacts in campaign: ${totalCount}). Marking campaign as ${totalCount > 0 ? 'done' : 'failed'}.`);
     await prisma.campaign.update({
       where: { id: campaignId },
       data: { status: totalCount > 0 ? 'done' : 'failed' },
