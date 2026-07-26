@@ -30,7 +30,7 @@ fi
 
 # 4. Install Application Dependencies & Prisma Setup
 echo "🛠️ Installing npm packages and generating Prisma Client..."
-npm install
+npm install --legacy-peer-deps
 npx prisma generate
 npx prisma db push
 
