@@ -26,17 +26,25 @@ export const runCampaign = async (campaignId: number) => {
     return;
   }
 
-  // Check if WhatsApp is actually connected and ready (memory or database)
+  // Check if WhatsApp is actually connected and authenticated
+  const memStatus = getWAStatus(campaign.sessionId || 'default').status;
   const dbSession = await prisma.wASession.findUnique({
     where: { sessionId: campaign.sessionId || 'default' }
   });
-  const memStatus = getWAStatus(campaign.sessionId || 'default').status;
-  const isConnected = memStatus === 'connected' || dbSession?.status === 'connected';
 
-  console.log(`[CAMPAIGN RUNNER] Session "${campaign.sessionId || 'default'}": Memory Status = ${memStatus}, DB Status = ${dbSession?.status}, isConnected = ${isConnected}`);
+  console.log(`[CAMPAIGN RUNNER] Session "${campaign.sessionId || 'default'}": Memory Status = ${memStatus}, DB Status = ${dbSession?.status}`);
 
-  if (!isConnected) {
-    console.warn(`WhatsApp session "${campaign.sessionId || 'default'}" is not connected. Resetting campaign to draft.`);
+  if (memStatus === 'qr' || memStatus === 'disconnected') {
+    console.warn(`[CAMPAIGN RUNNER] WhatsApp session "${campaign.sessionId || 'default'}" requires QR scan (Status: ${memStatus}). Resetting campaign to draft.`);
+    
+    // Sync database session status to QR
+    if (dbSession && dbSession.status !== memStatus) {
+      await prisma.wASession.update({
+        where: { sessionId: campaign.sessionId || 'default' },
+        data: { status: memStatus }
+      });
+    }
+
     await prisma.campaign.update({
       where: { id: campaignId },
       data: { status: 'draft' },
