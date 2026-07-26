@@ -98,8 +98,7 @@ export async function GET(req: Request) {
 
           // ─── Payload ──────────────────────────────────────────────────────────
           const payload = {
-            waStatus: waStatus.status,
-            qr: waStatus.qr,
+            waStatus,
             stats: { 
               ...stats, 
               totalContacts,
