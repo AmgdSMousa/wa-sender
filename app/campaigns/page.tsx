@@ -209,13 +209,14 @@ export default function Campaigns() {
     setLoadingCampaignId(id);
     try {
       const res = await fetch(`/api/campaigns/${id}/start`, { method: 'POST' });
+      const data = await res.json();
       if (res.ok) {
         fetchCampaigns();
-        toast.info('تم تقديم طلب البدء. يرجى مسح رمز الـ QR والاتصال بالواتساب أولاً من شاشة الإعدادات إذا لم تكن متصلاً! 📲');
+        toast.info('تم تقديم طلب البدء بنجاح! 🚀');
       } else {
-        toast.error('فشل بدء الحملة');
+        toast.error(data.error || 'فشل بدء الحملة');
       }
-    } catch (err) {
+    } catch (err: any) {
       toast.error('فشل بدء الحملة');
     } finally {
       setLoadingCampaignId(null);
