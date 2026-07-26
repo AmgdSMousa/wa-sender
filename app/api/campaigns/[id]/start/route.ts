@@ -20,8 +20,10 @@ export async function POST(
       return NextResponse.json({ error: 'الحملة غير موجودة' }, { status: 404 });
     }
     
-    // Run campaign directly in background without waiting for Redis queue or blocking HTTP response
-    runCampaign(id).catch((err) => console.error('Direct runCampaign error:', err));
+    // Trigger runCampaign on setImmediate so the HTTP response returns in 1ms without Cloudflare 524 timeout
+    setImmediate(() => {
+      runCampaign(id).catch((err) => console.error('Background runCampaign error:', err));
+    });
     
     return NextResponse.json({ success: true, message: 'تم بدء الحملة بنجاح' });
   } catch (error: any) {
