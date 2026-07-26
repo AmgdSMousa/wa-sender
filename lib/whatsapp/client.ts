@@ -32,7 +32,7 @@ if (!globalForWA.sessions) {
 
 function killOrphanBrowser(sessionId: string) {
   const safeId = getSafeClientId(sessionId);
-  const sessionPath = `/home/amged/wa sender/.wwebjs_auth/session-${safeId}`;
+  const sessionPath = join(process.cwd(), '.wwebjs_auth', `session-${safeId}`);
   try {
     execSync(`pkill -f "user-data-dir=${sessionPath}" 2>/dev/null || true`, { timeout: 1000 });
   } catch (_) { /* ignore */ }
@@ -79,25 +79,36 @@ export const getWAClient = (sessionId: string = 'default', force = false) => {
   state.isInitializing = true;
   state.connectionStatus = 'connecting';
 
+  let chromePath: string | undefined = undefined;
+  if (existsSync('/usr/bin/google-chrome')) {
+    chromePath = '/usr/bin/google-chrome';
+  } else if (existsSync('/usr/bin/chromium')) {
+    chromePath = '/usr/bin/chromium';
+  } else if (existsSync('/usr/bin/chromium-browser')) {
+    chromePath = '/usr/bin/chromium-browser';
+  }
+
   let client;
   try {
     client = new Client({
       authStrategy: new LocalAuth({
         clientId: getSafeClientId(sessionId),
-        dataPath: '/home/amged/wa sender/.wwebjs_auth',
+        dataPath: join(process.cwd(), '.wwebjs_auth'),
       }),
-    puppeteer: {
-      executablePath: '/usr/bin/google-chrome',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-first-run',
-        '--no-headless-clouds',
-        '--disable-extensions'
-      ],
-      headless: true,
+      puppeteer: {
+        ...(chromePath ? { executablePath: chromePath } : {}),
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--unhandled-rejections=strict'
+        ],
+        headless: true,
+      },
     },
     webVersionCache: {
       type: 'local',
