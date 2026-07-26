@@ -1,51 +1,42 @@
-import { Queue, Worker } from 'bullmq';
-import IORedis from 'ioredis';
 import { runCampaign } from '../whatsapp/campaign-runner';
 
-let connection: IORedis | null = null;
-let campaignQueue: any = null;
+let campaignQueue: any;
 
-try {
-  connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
-    maxRetriesPerRequest: null,
-    enableOfflineQueue: false,
-    retryStrategy: () => null, // Stop retrying endlessly if Redis is not installed
-  });
+if (process.env.REDIS_URL) {
+  try {
+    const { Queue, Worker } = require('bullmq');
+    const IORedis = require('ioredis');
 
-  // Suppress unhandled ECONNREFUSED error spam when Redis is not installed
-  connection.on('error', (err) => {
-    // Silent catch for missing Redis server
-  });
-
-  campaignQueue = new Queue('Campaigns', { connection });
-
-  const globalWorker = globalThis as unknown as { __worker?: Worker };
-
-  if (typeof window === 'undefined' && !globalWorker.__worker && process.env.NODE_ENV !== 'test') {
-    globalWorker.__worker = new Worker(
-      'Campaigns',
-      async (job) => {
-        console.log(`Processing job ${job.id} for campaign ${job.data.campaignId}`);
-        await runCampaign(job.data.campaignId);
-      },
-      { 
-        connection, 
-        concurrency: 1 
-      } 
-    );
-
-    globalWorker.__worker.on('completed', (job) => {
-      console.log(`Job ${job.id} has completed!`);
+    const connection = new IORedis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      enableOfflineQueue: false,
     });
+    connection.on('error', () => {});
 
-    globalWorker.__worker.on('failed', (job, err) => {
-      console.log(`Job ${job?.id} has failed with ${err.message}`);
-    });
+    campaignQueue = new Queue('Campaigns', { connection });
 
-    globalWorker.__worker.on('error', () => {});
+    const globalWorker = globalThis as unknown as { __worker?: any };
+    if (typeof window === 'undefined' && !globalWorker.__worker && process.env.NODE_ENV !== 'test') {
+      globalWorker.__worker = new Worker(
+        'Campaigns',
+        async (job: any) => {
+          console.log(`Processing job ${job.id} for campaign ${job.data.campaignId}`);
+          await runCampaign(job.data.campaignId);
+        },
+        { connection, concurrency: 1 }
+      );
+      globalWorker.__worker.on('error', () => {});
+    }
+  } catch (e) {
+    campaignQueue = {
+      add: async (_name: string, data: { campaignId: number }) => {
+        runCampaign(data.campaignId).catch(console.error);
+        return { id: `direct-${Date.now()}` };
+      }
+    };
   }
-} catch (e) {
-  // Fallback for environment without Redis
+} else {
+  // Direct in-memory execution fallback (No Redis required)
   campaignQueue = {
     add: async (_name: string, data: { campaignId: number }) => {
       runCampaign(data.campaignId).catch(console.error);
