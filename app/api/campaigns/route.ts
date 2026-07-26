@@ -23,9 +23,9 @@ export async function POST(req: Request) {
     const data = await req.json();
     const { name, message, contacts, targetTag, scheduledAt, mediaUrl, minDelay, maxDelay, batchSize, batchDelay, sessionId, isDrip, sequenceSteps } = data;
 
-    let finalContacts: { phone: string; name?: string }[] = Array.isArray(contacts) ? contacts : [];
+    let rawContacts: { phone: string; name?: string }[] = Array.isArray(contacts) ? contacts : [];
 
-    if (finalContacts.length === 0 && targetTag) {
+    if (rawContacts.length === 0 && targetTag) {
       const dbContacts = await prisma.contact.findMany({
         where: {
           isBlacklisted: false,
@@ -33,8 +33,20 @@ export async function POST(req: Request) {
         },
         select: { phone: true, name: true },
       });
-      finalContacts = dbContacts.map((c) => ({ phone: c.phone, name: c.name || undefined }));
+      rawContacts = dbContacts.map((c) => ({ phone: c.phone, name: c.name || undefined }));
     }
+
+    // Deduplicate contacts by clean phone number to prevent Prisma P2002 unique constraint errors
+    const uniqueContactsMap = new Map<string, { phone: string; name?: string }>();
+    for (const c of rawContacts) {
+      if (c && c.phone) {
+        const cleanPhone = String(c.phone).trim().replace(/[^0-9]/g, '');
+        if (cleanPhone && !uniqueContactsMap.has(cleanPhone)) {
+          uniqueContactsMap.set(cleanPhone, { phone: cleanPhone, name: c.name });
+        }
+      }
+    }
+    const finalContacts = Array.from(uniqueContactsMap.values());
     
     if (!name || finalContacts.length === 0) {
       return NextResponse.json({ error: 'الاسم وجهات الاتصال (أو الوسم المحدد) مطلوبان' }, { status: 400 });
@@ -58,14 +70,13 @@ export async function POST(req: Request) {
         isDrip: !!isDrip,
         sequenceSteps: isDrip && sequenceSteps ? JSON.stringify(sequenceSteps) : null,
         contacts: {
-          create: finalContacts.map((c: any) => {
-            const cleanPhone = String(c.phone || '').trim().replace(/[^0-9]/g, '');
+          create: finalContacts.map((c) => {
             return {
               contact: {
                 connectOrCreate: {
-                  where: { phone: cleanPhone },
+                  where: { phone: c.phone },
                   create: {
-                    phone: cleanPhone,
+                    phone: c.phone,
                     name: c.name || null,
                     source: 'campaign_upload',
                   },
@@ -76,9 +87,6 @@ export async function POST(req: Request) {
         },
       },
     });
-
-    // If not scheduled, start immediately? Or wait for user to click "Start"?
-    // Let's assume the user starts it manually from the UI for better control.
 
     return NextResponse.json(campaign);
   } catch (error: any) {
