@@ -40,20 +40,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid contacts data' }, { status: 400 });
     }
 
-    // SQLite doesn't support skipDuplicates in createMany, so we filter manually
-    const phones = contacts.map(c => c.phone);
+    // 1. Deduplicate batch contacts array internally by phone number
+    const uniqueBatchMap = new Map<string, any>();
+    contacts.forEach(c => {
+      if (c && c.phone) {
+        const cleanPhone = String(c.phone).trim();
+        if (cleanPhone && !uniqueBatchMap.has(cleanPhone)) {
+          uniqueBatchMap.set(cleanPhone, { ...c, phone: cleanPhone });
+        }
+      }
+    });
+    const deduplicatedContacts = Array.from(uniqueBatchMap.values());
+
+    if (deduplicatedContacts.length === 0) {
+      return NextResponse.json({ success: true, count: 0 });
+    }
+
+    // 2. Filter contacts that already exist in database
+    const phones = deduplicatedContacts.map(c => c.phone);
     const existingContacts = await prisma.contact.findMany({
       where: { phone: { in: phones } },
       select: { phone: true }
     });
     
     const existingPhones = new Set(existingContacts.map(c => c.phone));
-    const newContacts = contacts.filter(c => !existingPhones.has(c.phone));
+    const newContacts = deduplicatedContacts.filter(c => !existingPhones.has(c.phone));
 
     if (newContacts.length === 0) {
       return NextResponse.json({ success: true, count: 0 });
     }
 
+    // 3. Insert new contacts with skipDuplicates
     const result = await prisma.contact.createMany({
       data: newContacts.map(c => ({
         phone: c.phone,
@@ -61,7 +78,8 @@ export async function POST(req: NextRequest) {
         tags: c.tags || null,
         metadata: c.metadata || null,
         source: c.source || 'crm_manual'
-      }))
+      })),
+      skipDuplicates: true
     });
 
     return NextResponse.json({ success: true, count: result.count });
@@ -70,6 +88,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
 export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json();
@@ -79,5 +98,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
-// Prisma Client Trigger
