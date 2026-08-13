@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp Bulk Sender & Automation",
+  "description": "Send bulk WhatsApp messages, customize templates, schedule campaigns, generate promotional image attachments using AI, translate templates, and automate keyword replies with a Gemini chatbot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

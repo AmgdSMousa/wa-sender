@@ -1,0 +1,120 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id              Int             @id @default(autoincrement())
+  email           String          @unique
+  name            String
+  password        String
+  role            String          @default("user") // admin, user
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  
+  campaigns       Campaign[]
+  templates       Template[]
+  rules           Rule[]
+  blockedNumbers  BlockedNumber[]
+  devices         Device[]
+  supportMessages SupportMessage[]
+}
+
+model Campaign {
+  id           Int      @id @default(autoincrement())
+  name         String
+  status       String   @default("pending") // pending, running, completed, error
+  createdAt    DateTime @default(now())
+  scheduledFor DateTime?
+  data         String   @default("{}")
+
+  userId       Int?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deliveryJobs DeliveryJob[]
+}
+
+model Template {
+  id        Int      @id @default(autoincrement())
+  name      String
+  content   String
+  language  String   @default("ar")
+
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Rule {
+  id         Int      @id @default(autoincrement())
+  keyword    String
+  matchType  String   @default("contains") // equals, contains, starts_with
+  replyText  String
+  active     Boolean  @default(true)
+
+  userId     Int?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BlockedNumber {
+  id        Int      @id @default(autoincrement())
+  phone     String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([phone, userId])
+}
+
+model DeliveryJob {
+  id          Int       @id @default(autoincrement())
+  campaignId  Int
+  recipient   String
+  payload     String
+  status      String    @default("pending") // pending, processing, sent, delivered, read, failed, skipped
+  attempts    Int       @default(0)
+  messageId   String?   @unique
+  availableAt DateTime  @default(now())
+  lockedAt    DateTime?
+  completedAt DateTime?
+  deliveredAt DateTime?
+  readAt      DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@index([campaignId])
+}
+
+model Device {
+  id        String   @id @default(uuid())
+  phone     String?  @unique
+  name      String
+  status    String   @default("disconnected") // connected, disconnected, qr_ready
+  qr        String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SupportMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  isAdmin   Boolean  @default(false)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

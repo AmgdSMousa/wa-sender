@@ -1,0 +1,17 @@
+# ProSender WhatsApp Bulk Sender and Automation
+
+Welcome to the ProSender AI configuration file. This platform is a comprehensive WhatsApp marketing and automation tool that allows users to send bulk messages, manage templates, automate replies via an intelligent chatbot, and extract leads from Google Maps.
+
+## About Us
+ProSender is designed to help businesses manage their WhatsApp outreach efficiently and safely. We prioritize security and compliance to protect WhatsApp numbers from being banned while providing powerful marketing features.
+
+## Links
+- [Main Website](https://0mail.online/)
+- [Login](/login)
+- [Register](/register)
+
+## Capabilities
+- **Bulk Messaging:** Send personalized messages to thousands of contacts with attachments.
+- **Smart Chatbot:** Set up keyword-based auto-replies.
+- **Google Maps Extractor:** Extract business contacts directly from Google Maps.
+- **Anti-Spam Features:** Implement delays and variable messaging to avoid bans.

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="ProSender - المنصة الأذكى والأسرع لإدارة حملات الواتساب التسويقية. أرسل آلاف الرسائل بأمان وفعّل الرد الآلي بكل سهولة." />
+    <title>WhatsApp Bulk Sender</title>
+    <script>
+      // Defensive fallback for environments/host frames that attempt to reassign window.fetch
+      // where it is defined as read-only or getter-only.
+      (function() {
+        try {
+          var originalFetch = window.fetch;
+          var currentFetch = originalFetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function() {
+              return currentFetch;
+            },
+            set: function(val) {
+              currentFetch = val;
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {
+          console.warn("Could not redefine window.fetch with setter support", e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
